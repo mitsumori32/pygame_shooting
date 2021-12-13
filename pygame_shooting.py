@@ -1,5 +1,4 @@
 import sys
-import time
 import random
 import pygame
 from pygame.locals import *
@@ -16,21 +15,23 @@ PLAYER_SPEED = 30
 PLAYER_INITIAL_POSITION_X = 400
 PLAYER_INITIAL_POSITION_Y = 800
 
-# 敵のサイズ（X,Y），速度
+# 敵のサイズ（X,Y）
 ENEMY_SIZE_X = 130
 ENEMY_SIZE_Y = 100
-#ENEMY_SPEED = 10
 
 # 弾丸のサイズ（X,Y），速度
 BULLET_SIZE_X = 25
 BULLET_SIZE_Y = 25
 BULLET_SPEED = 30
 
+# ビームのサイズ（X,Y），速度
+BEAM_SIZE_X = 50
+BEAM_SIZE_Y = 50
+BEAM_SPEED = 15
+
 # 画面定義(X軸,Y軸,横,縦)
 SURFACE = Rect(0, 0, WIDTH, HEIGHT)
 
-# フォントの設定
-font_name = pygame.font.match_font('メイリオ')
 
 ### 背景クラス ###
 class Background:
@@ -38,7 +39,6 @@ class Background:
     def __init__(self):
         #　画像をロードしてtransformでサイズ調整（画面サイズに合わせる）
         self.image = pygame.image.load('BG.png').convert_alpha()
-        
         self.image = pygame.transform.scale(self.image,(WIDTH,HEIGHT))
         
         #　画面のスクロール設定
@@ -68,29 +68,26 @@ class Background:
 class Player(pygame.sprite.Sprite):
     
     # インスタンス化の際に初期位置を引数x、yで指定
-    def __init__(self, x, y, enemies):
+    def __init__(self, x, y, enemies, beams):
         # スプライトクラスの初期化
         pygame.sprite.Sprite.__init__(self)
         
         # 画像の読み込み
         self.image = pygame.image.load("shooter.png").convert_alpha()
-        
         # 画像サイズ変更
         self.image = pygame.transform.scale(self.image, (PLAYER_SIZE_X, PLAYER_SIZE_Y))
-        
         # 画像のrectサイズを取得
         self.rect = self.image.get_rect()
         self.rect.center = [x,y]
         
-        # radiusは当たり判定の設定に必要
-        self.radius = 50
-        
         # プレイヤーの残機
         self.remaining_lives = 5
         
-        # エネミーグループを保存
+        # エネミーグループ，ビームグループを保存
         self.enemy = enemies
+        self.beam = beams
         
+        # 無敵時間カウンターを初期化
         self.counter = 0
         
         # 現在の状態をture,falseで管理
@@ -100,19 +97,16 @@ class Player(pygame.sprite.Sprite):
         #self.READY = False
         #self.IMMORTAL = False
         self.INVINCIBLE = False
+        
     
     # プレイヤーを描画するメソッド
     def draw(self, surface):
         surface.blit(self.image, self.rect)
         draw_text(surface, "remaining lives:{:02d}".format(self.remaining_lives), 50, 640, 0, "white")
         
+        
     # 描画メソッド
     def update(self):
-        
-        # 無敵時間カウンターを加算
-        self.counter += 1
-        #print(self.counter)
-        
         # キー操作関連
         key = pygame.key.get_pressed()
         
@@ -136,14 +130,31 @@ class Player(pygame.sprite.Sprite):
             self.rect.y += PLAYER_SPEED
             if self.rect.y >= HEIGHT - PLAYER_SIZE_Y:
                 self.rect.y = HEIGHT - PLAYER_SIZE_Y
+           
+        # 衝突判定メソッドを呼び出す
+        self.collision_detection()
                 
+        
+    # 衝突判定メソッド
+    def collision_detection(self):
+        # 無敵時間カウンターを加算
+        self.counter += 1
+        
+        # 接触しているものをリストで返す
         enemy_list = pygame.sprite.spritecollide(self, self.enemy, True)
+        beam_list = pygame.sprite.spritecollide(self, self.beam, True)
         
-        #print(self.INVINCIBLE)
-        
-        # プレイヤーの衝突判定
+        # 衝突判定
         if self.INVINCIBLE == False:
+            # 敵とプレイヤーの衝突判定
             if enemy_list:
+                self.counter = 0
+                self.INVINCIBLE = True
+                self.init_position()
+                self.remaining_lives -= 1
+                
+            # ビームとプレイヤーの衝突判定
+            if beam_list:
                 self.counter = 0
                 self.INVINCIBLE = True
                 self.init_position()
@@ -155,9 +166,10 @@ class Player(pygame.sprite.Sprite):
             self.INVINCIBLE = False
             
         # ゲームオーバー
-        if self.remaining_lives == 0:
+        if self.remaining_lives <= 0:
             self.DEAD = True
             exit()
+    
     
     # 位置を初期化するメソッド
     def init_position(self):
@@ -169,34 +181,41 @@ class Player(pygame.sprite.Sprite):
 class Enemy(pygame.sprite.Sprite):
     
     # インスタンス化の際に初期位置を引数x、yで指定
-    def __init__(self, x, y, bullets):
+    def __init__(self, x, y, player, bullets, beams):
         pygame.sprite.Sprite.__init__(self)
  
         # 画像の読み込み
         self.image = pygame.image.load("Enemy_2.png").convert_alpha()
- 
         # 画像サイズ変更
         self.image = pygame.transform.scale(self.image, (ENEMY_SIZE_X, ENEMY_SIZE_Y))
- 
         # 画像のrectサイズを取得
         self.rect = self.image.get_rect()
-        self.rect.center = [x,y]
+        #self.rect.center = [x,y]
         
         # 他オブジェクト保存
+        self.player = player
         self.bullet = bullets
+        self.beam = beams
         
         # エネミーのスピードをランダムに決定
-        self.speed = random.randint(10,25)
+        self.speed = random.randint(5,10)
  
         # エネミー初期位置
         self.rect.x = x
         self.rect.y = y - ENEMY_SIZE_Y
     
- 
-    # 敵の移動
+    
+    # 敵の移動やビーム射出
     def update(self):
         # 敵の速度
         self.rect.y += self.speed
+        
+        # ランダムでビーム射出
+        if len(self.beam) < 10:
+            if random.randint(0,200) > 199:
+                x = self.rect.x
+                y = self.rect.y
+                self.beam.add(Beam(x, y, self.player))
             
         # 画面外に出たら消去
         if self.rect.bottom-ENEMY_SIZE_Y > SURFACE.height:
@@ -207,15 +226,13 @@ class Enemy(pygame.sprite.Sprite):
 class Bullet(pygame.sprite.Sprite):
     
     # インスタンス化の際に初期位置を引数x、yで指定
-    def __init__(self, player, enemies, score):
+    def __init__(self, player, enemies, beams, score):
         pygame.sprite.Sprite.__init__(self)
         
         # 画像の読み込み
         self.image = pygame.image.load("Bullet.png").convert_alpha()
- 
         # 画像サイズ変更
         self.image = pygame.transform.scale(self.image, (BULLET_SIZE_X, BULLET_SIZE_Y))
- 
         # 画像のrectサイズを取得
         self.rect = self.image.get_rect()
         #self.rect.center = [x,y]
@@ -223,6 +240,7 @@ class Bullet(pygame.sprite.Sprite):
         # 他オブジェクト保存
         self.player = player
         self.enemy = enemies
+        self.beam = beams
         self.score = score
         
         # 弾丸初期位置
@@ -235,11 +253,18 @@ class Bullet(pygame.sprite.Sprite):
         # 弾丸の速度
         self.rect.y -= BULLET_SPEED
         
-        # 命中判定
+        # 接触しているものをリストで返す
         enemy_list = pygame.sprite.spritecollide(self, self.enemy, True)
+        beam_list = pygame.sprite.spritecollide(self, self.beam, True)
         
+        # 衝突判定
         # 敵と衝突したら消去
         if enemy_list:
+            self.score.calc(5)
+            self.kill()
+            
+        # ビームと衝突したら消去
+        if beam_list:
             self.score.calc(1)
             self.kill()
             
@@ -248,6 +273,40 @@ class Bullet(pygame.sprite.Sprite):
             self.kill()
     
 
+### ビームクラス ###
+class Beam(pygame.sprite.Sprite):
+    
+    def __init__(self, x, y, player):
+        pygame.sprite.Sprite.__init__(self)
+        
+        # 画像の読み込み
+        self.image = pygame.image.load("Beam.png").convert_alpha()
+        # 画像サイズ変更
+        self.image = pygame.transform.scale(self.image, (BEAM_SIZE_X, BEAM_SIZE_X))
+        # 画像のrectサイズを取得
+        self.rect = self.image.get_rect()
+        #self.rect.center = [x,y]
+        
+        # 他オブジェクト保存
+        self.player = player
+        
+        # ビーム初期位置
+        self.rect.x = x + 50
+        self.rect.y = y
+        
+    
+    def update(self):
+        # ビームの速度
+        self.rect.y += BEAM_SPEED
+        
+        # プレイヤーとビームの当たり判定を調べる
+        self.player.collision_detection()
+            
+        # 画面外に出たら消去
+        if self.rect.bottom-BEAM_SIZE_Y > SURFACE.height:
+            self.kill()
+        
+
 ### スコアクラス ###            
 class Score():
     
@@ -255,7 +314,7 @@ class Score():
         # スコアを保持する変数
         self.score = 0
         
-    
+        
     # スコアを計算するメソッド
     def calc(self, point):
         self.score = self.score + (point * 100)
@@ -263,43 +322,31 @@ class Score():
         
     # スコアを描画するメソッド
     def draw(self, surface):
-        draw_text(surface, "score:{:05d}".format(self.score), 50, 110, 0, "white")
+        draw_text(surface, "score:{:06d}".format(self.score), 50, 110, 0, "white")
         
 
-# テキスト描画関数
-def draw_text(screen, text, size, x, y, color):
-    font = pygame.font.Font(font_name, size)
-    text_surface = font.render(text, True, color)
-    text_rect = text_surface.get_rect()
-    text_rect.midtop = (x, y)
-    screen.blit(text_surface, text_rect)
-
-
-# メインクラス（ゲームのループを行う）
+### メインクラス（ゲームのループを行う） ###
 class Main():
     
     def __init__(self):
         # 画面初期化
         pygame.init()
         self.surface = pygame.display.set_mode(SURFACE.size)
-    
         # 背景インスタンス化
         self.BG = Background()
-        
         # 敵グループを作成
         self.enemies = pygame.sprite.Group()
-        
         # 弾丸グループを作成
         self.bullets = pygame.sprite.Group()
-        
+        # ビームグループを作成
+        self.beams = pygame.sprite.Group()
         # プレイヤーインスタンス化
-        self.player = Player(PLAYER_INITIAL_POSITION_X, PLAYER_INITIAL_POSITION_Y, self.enemies)
-    
+        self.player = Player(PLAYER_INITIAL_POSITION_X, PLAYER_INITIAL_POSITION_Y, self.enemies, self.beams)
         # 時間オブジェクト生成
         self.clock = pygame.time.Clock()
-        
         # スコアインスタンス化
-        self.score = Score()      
+        self.score = Score()
+    
     
     # メイン関数 
     def main(self):
@@ -316,18 +363,20 @@ class Main():
                 if random.randint(0,20) > 19:
                     x = random.randint(0,670)
                     y = 0
-                    self.enemies.add(Enemy(x, y, self.bullets))
+                    self.enemies.add(Enemy(x, y, self.player, self.bullets, self.beams))
                     
             # スプライトを更新
             self.player.update()
             self.enemies.update()
             self.bullets.update()
+            self.beams.update()
     
             # スプライトを描画
             self.BG.draw_BG(self.surface)
             self.player.draw(self.surface)
             self.enemies.draw(self.surface)
             self.bullets.draw(self.surface)
+            self.beams.draw(self.surface)
             self.score.draw(self.surface)
     
             # 画面更新
@@ -347,19 +396,28 @@ class Main():
                         
                     # スペースキーが押されたら弾を発射
                     if event.key == pygame.K_SPACE:
-                        self.bullets.add(Bullet(self.player, self.enemies, self.score))
+                        self.bullets.add(Bullet(self.player, self.enemies, self.beams, self.score))
+
+                                         
+# フォントの設定
+font_name = pygame.font.match_font('メイリオ')
+
+# テキスト描画関数
+def draw_text(screen, text, size, x, y, color):
+    font = pygame.font.Font(font_name, size)
+    text_surface = font.render(text, True, color)
+    text_rect = text_surface.get_rect()
+    text_rect.midtop = (x, y)
+    screen.blit(text_surface, text_rect)
+
 
 # 終了関数
 def exit():
     pygame.quit()
     sys.exit()
 
-game = Main()
 
-game.main()
-
-
-# メイン関数呼び出し
-#if __name__ == "__main__":
-#    # 処理開始
-#    main()
+# メインクラスのインスタンス化
+Main = Main()
+# main関数呼び出し
+Main.main()
