@@ -275,83 +275,91 @@ def draw_text(screen, text, size, x, y, color):
     screen.blit(text_surface, text_rect)
 
 
-# メイン関数 
-def main():
-    # 画面初期化
-    pygame.init()
-    surface = pygame.display.set_mode(SURFACE.size)
-
-    # 背景インスタンス化
-    BG = Background()
+# メインクラス（ゲームのループを行う）
+class Main():
     
-    # 敵グループを作成
-    enemies = pygame.sprite.Group()
+    def __init__(self):
+        # 画面初期化
+        pygame.init()
+        self.surface = pygame.display.set_mode(SURFACE.size)
     
-    # 弾丸グループを作成
-    bullets = pygame.sprite.Group()
+        # 背景インスタンス化
+        self.BG = Background()
+        
+        # 敵グループを作成
+        self.enemies = pygame.sprite.Group()
+        
+        # 弾丸グループを作成
+        self.bullets = pygame.sprite.Group()
+        
+        # プレイヤーインスタンス化
+        self.player = Player(PLAYER_INITIAL_POSITION_X, PLAYER_INITIAL_POSITION_Y, self.enemies)
     
-    # プレイヤーインスタンス化
-    player = Player(PLAYER_INITIAL_POSITION_X, PLAYER_INITIAL_POSITION_Y, enemies)
-
-    # 時間オブジェクト生成
-    clock = pygame.time.Clock()
+        # 時間オブジェクト生成
+        self.clock = pygame.time.Clock()
+        
+        # スコアインスタンス化
+        self.score = Score()      
     
-    # スコアインスタンス化
-    score = Score()
-
-    # ゲームのメインループ
-    while True:
-        # フレームレート設定
-        clock.tick(30)
-
-        # 背景色設定
-        surface.fill((0,0,0))
-
-        # 敵の生成
-        if len(enemies) < 5:
-            if random.randint(0,20) > 19:
-                x = random.randint(0,670)
-                y = 0
-                enemies.add(Enemy(x, y, bullets))
-                
-        # スプライトを更新
-        player.update()
-        enemies.update()
-        bullets.update()
-
-        # スプライトを描画
-        BG.draw_BG(surface)
-        player.draw(surface)
-        enemies.draw(surface)
-        bullets.draw(surface)
-        score.draw(surface)
-
-        # 画面更新
-        pygame.display.update()
-
-        # イベント処理
-        for event in pygame.event.get():
-            # 終了処理
-            if event.type == QUIT:
-                exit()
-                
-            # キーが押された時のイベント処理    
-            if event.type == KEYDOWN:
-                # エスケープキーが押されたら終了
-                if event.key == K_ESCAPE:         
+    # メイン関数 
+    def main(self):
+        # ゲームのメインループ
+        while True:
+            # フレームレート設定
+            self.clock.tick(30)
+    
+            # 背景色設定
+            self.surface.fill((0,0,0))
+    
+            # 敵の生成
+            if len(self.enemies) < 5:
+                if random.randint(0,20) > 19:
+                    x = random.randint(0,670)
+                    y = 0
+                    self.enemies.add(Enemy(x, y, self.bullets))
+                    
+            # スプライトを更新
+            self.player.update()
+            self.enemies.update()
+            self.bullets.update()
+    
+            # スプライトを描画
+            self.BG.draw_BG(self.surface)
+            self.player.draw(self.surface)
+            self.enemies.draw(self.surface)
+            self.bullets.draw(self.surface)
+            self.score.draw(self.surface)
+    
+            # 画面更新
+            pygame.display.update()
+    
+            # イベント処理
+            for event in pygame.event.get():
+                # 終了処理
+                if event.type == QUIT:
                     exit()
                     
-                # スペースキーが押されたら弾を発射
-                if event.key == pygame.K_SPACE:
-                    bullets.add(Bullet(player, enemies, score))
+                # キーが押された時のイベント処理    
+                if event.type == KEYDOWN:
+                    # エスケープキーが押されたら終了
+                    if event.key == K_ESCAPE:         
+                        exit()
+                        
+                    # スペースキーが押されたら弾を発射
+                    if event.key == pygame.K_SPACE:
+                        self.bullets.add(Bullet(self.player, self.enemies, self.score))
 
 # 終了関数
 def exit():
     pygame.quit()
     sys.exit()
 
+game = Main()
+
+game.main()
+
 
 # メイン関数呼び出し
-if __name__ == "__main__":
-    # 処理開始
-    main()
+#if __name__ == "__main__":
+#    # 処理開始
+#    main()
