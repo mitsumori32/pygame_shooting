@@ -52,7 +52,7 @@ class Background:
         
         
     #　描画メソッド
-    def draw_BG(self, surface): 
+    def draw_BG(self, surface, flag): 
         #for文で２つの位置に１枚づつバックグラウンドを描画する（描画するx位置は上で指定したimagesizeリスト）
         for i in range(2):      
             surface.blit(self.image,(self.x, self.scroll - self.imagesize[i]))
@@ -62,7 +62,12 @@ class Background:
         #画像が端まで来たら初期位置に戻す
         if abs(self.scroll) > HEIGHT:
             self.scroll = 0
-
+            
+        if(flag == False):
+            #pygame.draw.rect(self.surface, (255,255,255), (0,200,100,180))
+            draw_text(surface, "SHOOTING",  100, WIDTH - (WIDTH/2), 300, "White")
+            draw_text(surface, "Press SPACE to start",  50, WIDTH - (WIDTH/2), 500, "white")
+            draw_text(surface, "Press Esc to exit",  50, WIDTH - (WIDTH/2), 600, "white")            
 
 ### プレイヤークラス ###
 class Player(pygame.sprite.Sprite):
@@ -308,7 +313,7 @@ class Beam(pygame.sprite.Sprite):
         
 
 ### スコアクラス ###            
-class Score():
+class Score:
     
     def __init__(self):
         # スコアを保持する変数
@@ -326,7 +331,7 @@ class Score():
         
 
 ### メインクラス（ゲームのループを行う） ###
-class Main():
+class Main:
     
     def __init__(self):
         # 画面初期化
@@ -346,44 +351,29 @@ class Main():
         self.clock = pygame.time.Clock()
         # スコアインスタンス化
         self.score = Score()
-    
-    
-    # メイン関数 
-    def main(self):
-        # ゲームのメインループ
-        while True:
+        
+        # 各種フラグ
+        self.game_start = False
+        
+    # スタート画面を描画し続けるためのメソッド    
+    def start(self):
+        
+        while True: 
             # フレームレート設定
             self.clock.tick(30)
-    
+
             # 背景色設定
             self.surface.fill((0,0,0))
-    
-            # 敵の生成
-            if len(self.enemies) < 5:
-                if random.randint(0,20) > 19:
-                    x = random.randint(0,670)
-                    y = 0
-                    self.enemies.add(Enemy(x, y, self.player, self.bullets, self.beams))
-                    
-            # スプライトを更新
-            self.player.update()
-            self.enemies.update()
-            self.bullets.update()
-            self.beams.update()
-    
-            # スプライトを描画
-            self.BG.draw_BG(self.surface)
-            self.player.draw(self.surface)
-            self.enemies.draw(self.surface)
-            self.bullets.draw(self.surface)
-            self.beams.draw(self.surface)
-            self.score.draw(self.surface)
-    
+            
+            # タイトル画面描画メソッドを呼び出す
+            self.BG.draw_BG(self.surface, self.game_start)
+            
             # 画面更新
             pygame.display.update()
-    
+            
             # イベント処理
             for event in pygame.event.get():
+                
                 # 終了処理
                 if event.type == QUIT:
                     exit()
@@ -394,9 +384,70 @@ class Main():
                     if event.key == K_ESCAPE:         
                         exit()
                         
+                    # スペースキーが押されたらゲーム開始
+                    if event.key == K_SPACE:
+                        self.game_start = True
+                        return
+            
+            
+    
+    # メイン関数 
+    def main(self):
+        
+        # スタートメソッドを呼び出す
+        self.start()
+        
+        # ゲームのメインループ
+        while self.game_start:
+            # イベント処理
+            for event in pygame.event.get():
+                # 終了処理
+                if event.type == QUIT:
+                    exit()
+                    
+                # ゲームオーバー時の処理
+                
+                # ゲームクリア時の処理
+                    
+                # キーが押された時のイベント処理    
+                if event.type == KEYDOWN:
+                    # エスケープキーが押されたら終了
+                    if event.key == K_ESCAPE:         
+                        exit()
+                        
                     # スペースキーが押されたら弾を発射
                     if event.key == pygame.K_SPACE:
                         self.bullets.add(Bullet(self.player, self.enemies, self.beams, self.score))
+            
+            # フレームレート設定
+            self.clock.tick(30)
+    
+            # 背景色設定
+            self.surface.fill((0,0,0))
+    
+            # 敵の生成
+            if len(self.enemies) < 7:
+                if random.randint(0,20) > 19:
+                    x = random.randint(0, WIDTH - ENEMY_SIZE_X)
+                    y = 0
+                    self.enemies.add(Enemy(x, y, self.player, self.bullets, self.beams))
+                    
+            # スプライトを更新
+            self.player.update()
+            self.enemies.update()
+            self.bullets.update()
+            self.beams.update()
+    
+            # スプライトを描画
+            self.BG.draw_BG(self.surface, self.game_start)
+            self.player.draw(self.surface)
+            self.enemies.draw(self.surface)
+            self.bullets.draw(self.surface)
+            self.beams.draw(self.surface)
+            self.score.draw(self.surface)
+    
+            # 画面更新
+            pygame.display.update()
 
                                          
 # フォントの設定
