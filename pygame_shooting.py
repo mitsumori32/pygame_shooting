@@ -13,8 +13,8 @@ PLAYER_SIZE_X = 100
 PLAYER_SIZE_Y = 120
 PLAYER_X_CENTER = 37
 PLAYER_SPEED = 30
-PLAYER_INITIAL_POSITION_X = 400
-PLAYER_INITIAL_POSITION_Y = 800
+PLAYER_POSITION_X = 400
+PLAYER_POSITION_Y = 800
 
 # 敵のサイズ（X,Y），画面に現れる最大数
 ENEMY_SIZE_X = 130
@@ -53,7 +53,7 @@ class Background:
         self.main = main
         
         #　0と画面横サイズの二つをリストに入れておく
-        self.imagesize = [HEIGHT,0]
+        self.imagesize = [HEIGHT, 0]
         
         
     #　描画メソッド
@@ -91,8 +91,7 @@ class Background:
 ### プレイヤークラス ###
 class Player(pygame.sprite.Sprite):
     
-    # インスタンス化の際に初期位置を引数x、yで指定
-    def __init__(self, x, y, enemies, beams):
+    def __init__(self, enemies, beams):
         # スプライトクラスの初期化
         pygame.sprite.Sprite.__init__(self)
         
@@ -102,7 +101,7 @@ class Player(pygame.sprite.Sprite):
         self.image = pygame.transform.scale(self.image, (PLAYER_SIZE_X, PLAYER_SIZE_Y))
         # 画像のrectサイズを取得
         self.rect = self.image.get_rect()
-        self.rect.center = [x,y]
+        self.rect.center = [PLAYER_POSITION_X, PLAYER_POSITION_Y]
         
         # プレイヤーの残機
         self.remaining_lives = 5
@@ -196,15 +195,15 @@ class Player(pygame.sprite.Sprite):
     
     # 位置を初期化するメソッド
     def init_position(self):
-        self.rect.centerx = PLAYER_INITIAL_POSITION_X
-        self.rect.centery = PLAYER_INITIAL_POSITION_Y
+        self.rect.centerx = PLAYER_POSITION_X
+        self.rect.centery = PLAYER_POSITION_Y
                 
         
 ### 敵クラス ###
 class Enemy(pygame.sprite.Sprite):
     
     # インスタンス化の際に初期位置を引数x、yで指定
-    def __init__(self, x, y, player, bullets, beams, score, main, level):
+    def __init__(self, player, beams, score, main, level):
         pygame.sprite.Sprite.__init__(self)
  
         # 画像の読み込み
@@ -217,7 +216,6 @@ class Enemy(pygame.sprite.Sprite):
         
         # 他オブジェクト保存
         self.player = player
-        self.bullet = bullets
         self.beam = beams
         self.score = score
         self.main = main
@@ -226,8 +224,8 @@ class Enemy(pygame.sprite.Sprite):
         self.speed = random.randint(3 + level , 7 + level)
  
         # エネミー初期位置
-        self.rect.x = x
-        self.rect.y = y - ENEMY_SIZE_Y
+        self.rect.x = random.randint(0, WIDTH - ENEMY_SIZE_X)
+        self.rect.y = 0 - ENEMY_SIZE_Y
     
     
     # 敵の移動やビーム射出
@@ -391,7 +389,7 @@ class Main:
         # ビームグループを作成
         self.beams = pygame.sprite.Group()
         # プレイヤーインスタンス化
-        self.player = Player(PLAYER_INITIAL_POSITION_X, PLAYER_INITIAL_POSITION_Y, self.enemies, self.beams)
+        self.player = Player(self.enemies, self.beams)
         # 時間オブジェクト生成
         self.clock = pygame.time.Clock()
         # スコアインスタンス化
@@ -399,12 +397,12 @@ class Main:
         
         # 各種フラグ
         self.game_start = False
-        self.game_clear = False
+        self.stage_clear = False
         self.game_over = False
         self.restart = False
         
         # ステージのレベル設定
-        self.level = self.score.level
+        self.level = 0
         
         # 敵を倒した数をカウント
         self.count = 0
@@ -420,7 +418,7 @@ class Main:
             self.surface.fill((0,0,0))
             
             # 背景描画メソッドを呼び出す
-            self.BG.draw_BG(self.surface, self.game_start, self.game_clear, self.game_over, self.level)
+            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level)
             
             # 画面更新
             pygame.display.update()
@@ -454,7 +452,7 @@ class Main:
             self.surface.fill((0,0,0))
             
             # 背景描画メソッドを呼び出す
-            self.BG.draw_BG(self.surface, self.game_start, self.game_clear, self.game_over, self.level)
+            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level)
             
             # 画面更新
             pygame.display.update()
@@ -511,9 +509,7 @@ class Main:
             # 敵の生成
             if len(self.enemies) < MAX_ENEMIES + self.level:
                 if random.randint(0,20) > 19:
-                    x = random.randint(0, WIDTH - ENEMY_SIZE_X)
-                    y = 0
-                    self.enemies.add(Enemy(x, y, self.player, self.bullets, self.beams, self.score, self, self.level))
+                    self.enemies.add(Enemy(self.player, self.beams, self.score, self, self.level))
                     
             # スプライトを更新
             self.player.update()
@@ -522,7 +518,7 @@ class Main:
             self.beams.update()
     
             # スプライトを描画
-            self.BG.draw_BG(self.surface, self.game_start, self.game_clear, self.game_over, self.level)
+            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level)
             self.player.draw(self.surface)
             self.enemies.draw(self.surface)
             self.bullets.draw(self.surface)
@@ -531,7 +527,7 @@ class Main:
             
             # 敵を10+(level*5)体倒したらステージクリア
             if self.count == 10 + (self.level * 3):
-                self.game_clear = True
+                self.stage_clear = True
                 # レベルを加算
                 self.score.add_level()
                 self.level = self.score.level
@@ -540,7 +536,7 @@ class Main:
             self.game_over = self.player.DEAD
             
             # ゲームクリア・オーバー処理
-            if self.game_clear or self.game_over:
+            if self.stage_clear or self.game_over:
                 # リザルト画面を表示し続けるメソッドを呼び出す
                 self.result()
             
@@ -550,17 +546,19 @@ class Main:
                 self.enemies.empty()
                 self.bullets.empty()
                 self.beams.empty()
-                # プレイヤーインスタンス化
-                self.player = Player(PLAYER_INITIAL_POSITION_X, PLAYER_INITIAL_POSITION_Y, self.enemies, self.beams)
                 
                 if self.game_over:
+                    # レベルを初期化
+                    self.level = 0
+                    # プレイヤーインスタンス化
+                    self.player = Player(self.enemies, self.beams)
                     # スコアインスタンス化（スコア初期化）
                     self.score = Score()
                     # 背景インスタンス化
                     self.BG = Background(self)
                 
                 # フラグ初期化
-                self.game_clear = False
+                self.stage_clear = False
                 self.game_over = False
                 self.restart = False
                 
