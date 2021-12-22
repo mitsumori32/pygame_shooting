@@ -9,27 +9,28 @@ WIDTH = 800
 HEIGHT = 1000
 
 # プレイヤーのサイズ（x,y），速度，初期位置
-PLAYER_SIZE_X = 100
-PLAYER_SIZE_Y = 120
-PLAYER_X_CENTER = 37
+PLAYER_SIZE_X = 70
+PLAYER_SIZE_Y = 80
+PLAYER_X_CENTER = 25
 PLAYER_SPEED = 30
 PLAYER_POSITION_X = 400
 PLAYER_POSITION_Y = 800
 
 # 敵のサイズ（X,Y），画面に現れる最大数
-ENEMY_SIZE_X = 130
-ENEMY_SIZE_Y = 100
-MAX_ENEMIES = 5
+ENEMY_SIZE_X = 90
+ENEMY_SIZE_Y = 70
+ENEMY_CENTER = 35
+MAX_ENEMIES = 3
 
 # 弾丸のサイズ（X,Y），速度
 BULLET_SIZE_X = 25
 BULLET_SIZE_Y = 25
-BULLET_SPEED = 30
+BULLET_SPEED = 50
 
 # ビームのサイズ（X,Y），初期速度
-BEAM_SIZE_X = 50
-BEAM_SIZE_Y = 50
-BEAM_SPEED = 10
+BEAM_SIZE_X = 30
+BEAM_SIZE_Y = 20
+BEAM_SPEED = 20
 
 # 画面定義(X軸,Y軸,横,縦)
 SURFACE = Rect(0, 0, WIDTH, HEIGHT)
@@ -40,12 +41,12 @@ class Background:
     
     def __init__(self, main):
         #　画像をロードしてtransformでサイズ調整（画面サイズに合わせる）
-        self.image = pygame.image.load('BG.png').convert_alpha()
-        self.image = pygame.transform.scale(self.image,(WIDTH,HEIGHT))
+        self.image = pygame.image.load('./image/BG.png').convert_alpha()
+        self.image = pygame.transform.scale(self.image, (WIDTH, HEIGHT))
         
         #　画面のスクロール設定
         self.scroll = 0
-        self.scroll_speed = 7
+        self.scroll_speed = 5
         self.x = 0
         self.y = 0
         
@@ -96,12 +97,16 @@ class Player(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
         
         # 画像の読み込み
-        self.image = pygame.image.load("shooter.png").convert_alpha()
+        self.image = pygame.image.load("./image/shooter.png").convert_alpha()
         # 画像サイズ変更
         self.image = pygame.transform.scale(self.image, (PLAYER_SIZE_X, PLAYER_SIZE_Y))
         # 画像のrectサイズを取得
         self.rect = self.image.get_rect()
         self.rect.center = [PLAYER_POSITION_X, PLAYER_POSITION_Y]
+        
+        # 衝突音
+        self.collision_sound = pygame.mixer.Sound('./mp3/BANG.mp3')
+        self.collision_sound.set_volume(0.2)
         
         # プレイヤーの残機
         self.remaining_lives = 5
@@ -171,6 +176,7 @@ class Player(pygame.sprite.Sprite):
             
             # 敵とプレイヤーの衝突判定
             if enemy_list:
+                self.collision_sound.play()
                 self.counter = 0
                 self.INVINCIBLE = True
                 self.init_position()
@@ -178,6 +184,7 @@ class Player(pygame.sprite.Sprite):
                 
             # ビームとプレイヤーの衝突判定
             if beam_list:
+                self.collision_sound.play()
                 self.counter = 0
                 self.INVINCIBLE = True
                 self.init_position()
@@ -203,22 +210,24 @@ class Player(pygame.sprite.Sprite):
 class Enemy(pygame.sprite.Sprite):
     
     # インスタンス化の際に初期位置を引数x、yで指定
-    def __init__(self, player, beams, score, main, level):
+    def __init__(self, player, beams, score, level):
         pygame.sprite.Sprite.__init__(self)
  
         # 画像の読み込み
-        self.image = pygame.image.load("Enemy_2.png").convert_alpha()
+        self.image = pygame.image.load("./image/Enemy_2.png").convert_alpha()
         # 画像サイズ変更
         self.image = pygame.transform.scale(self.image, (ENEMY_SIZE_X, ENEMY_SIZE_Y))
         # 画像のrectサイズを取得
         self.rect = self.image.get_rect()
         #self.rect.center = [x,y]
         
+        self.invasion_sound = pygame.mixer.Sound('./mp3/invasion.mp3')
+        self.invasion_sound.set_volume(0.2)
+        
         # 他オブジェクト保存
         self.player = player
         self.beam = beams
         self.score = score
-        self.main = main
         
         # エネミーのスピードをランダムに決定
         self.speed = random.randint(3 + level , 7 + level)
@@ -234,14 +243,15 @@ class Enemy(pygame.sprite.Sprite):
         self.rect.y += self.speed
         
         # ランダムでビーム射出
-        if len(self.beam) < 10:
-            if random.randint(0,200) > 199:
+        if len(self.beam) < 5:
+            if random.randint(0,100) > 99:
                 x = self.rect.x
                 y = self.rect.y
-                self.beam.add(Beam(x, y, self.player, self.main))
+                self.beam.add(Beam(x, y, self.player))
             
         # 画面外に出たら消去 10体画面から出たらゲームオーバー
         if self.rect.bottom-ENEMY_SIZE_Y > SURFACE.height:
+            self.invasion_sound.play()
             self.score.outside += 1
             self.kill()
             if self.score.outside == 5:
@@ -256,12 +266,18 @@ class Bullet(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
         
         # 画像の読み込み
-        self.image = pygame.image.load("Bullet.png").convert_alpha()
+        self.image = pygame.image.load("./image/Bullet.png").convert_alpha()
         # 画像サイズ変更
         self.image = pygame.transform.scale(self.image, (BULLET_SIZE_X, BULLET_SIZE_Y))
         # 画像のrectサイズを取得
         self.rect = self.image.get_rect()
         #self.rect.center = [x,y]
+        
+        # 衝突音
+        self.hit_sound = pygame.mixer.Sound('./mp3/BANG_2.mp3')
+        self.hit_sound.set_volume(0.2)
+        self.extinguishment_sound = pygame.mixer.Sound('./mp3/extinguishment.mp3')
+        self.extinguishment_sound.set_volume(0.2)
         
         # 他オブジェクト保存
         self.player = player
@@ -287,6 +303,7 @@ class Bullet(pygame.sprite.Sprite):
         # 衝突判定
         # 敵と衝突したら消去 同時にスコア加算，敵を倒した数のカウントを行う
         if enemy_list:
+            self.hit_sound.play()
             self.score.calc(5)
             self.main.count += 1
             # 敵を倒した数のトータルを保存
@@ -295,6 +312,7 @@ class Bullet(pygame.sprite.Sprite):
             
         # ビームと衝突したら消去
         if beam_list:
+            self.extinguishment_sound.play()
             self.score.calc(1)
             self.kill()
             
@@ -306,11 +324,11 @@ class Bullet(pygame.sprite.Sprite):
 ### ビームクラス ###
 class Beam(pygame.sprite.Sprite):
     
-    def __init__(self, x, y, player, main):
+    def __init__(self, x, y, player):
         pygame.sprite.Sprite.__init__(self)
         
         # 画像の読み込み
-        self.image = pygame.image.load("Beam.png").convert_alpha()
+        self.image = pygame.image.load("./image/Beam.png").convert_alpha()
         # 画像サイズ変更
         self.image = pygame.transform.scale(self.image, (BEAM_SIZE_X, BEAM_SIZE_X))
         # 画像のrectサイズを取得
@@ -319,16 +337,15 @@ class Beam(pygame.sprite.Sprite):
         
         # 他オブジェクト保存
         self.player = player
-        self.main = main
         
         # ビーム初期位置
-        self.rect.x = x + 50
+        self.rect.x = x + ENEMY_CENTER
         self.rect.y = y
         
     
     def update(self):
         # ビームの速度
-        self.rect.y += (BEAM_SPEED + self.main.level)
+        self.rect.y += BEAM_SPEED
         
         # プレイヤーとビームの当たり判定を調べる
         self.player.collision_detection()
@@ -344,13 +361,10 @@ class Score:
     def __init__(self):
         # スコアを保持する変数
         self.score = 0
-        
         # レベルを保存
         self.level = 0
-        
         # 画面外に出た敵の数
         self.outside = 0
-        
         # 倒した敵の数のトータル
         self.count_total = 0
         
@@ -395,6 +409,18 @@ class Main:
         # スコアインスタンス化
         self.score = Score()
         
+        # サウンドミキサーの初期化
+        pygame.mixer.init() 
+        # サウンド関連
+        self.BGM_1 = pygame.mixer.Sound('./mp3/BGM.mp3')
+        self.BGM_1.set_volume(0.2)
+        self.BGM_2 = pygame.mixer.Sound('./mp3/BGM_2.mp3')
+        self.BGM_2.set_volume(0.2)
+        self.push_sound = pygame.mixer.Sound('./mp3/PUSH.mp3')
+        self.push_sound.set_volume(0.2)
+        self.shoot_sound = pygame.mixer.Sound('./mp3/SHOOT.mp3')
+        self.shoot_sound.set_volume(0.2)
+        
         # 各種フラグ
         self.game_start = False
         self.stage_clear = False
@@ -410,6 +436,9 @@ class Main:
         
     # スタート画面を描画し続けるためのメソッド    
     def start(self):
+        
+        # スタート画面用のBGMを流す
+        self.BGM_1.play(-1)
         
         while True: 
             # フレームレート設定
@@ -438,6 +467,9 @@ class Main:
                         
                     # スペースキーが押されたらゲーム開始
                     if event.key == K_SPACE:
+                        self.push_sound.play()
+                        self.BGM_1.stop()
+                        self.BGM_2.play(-1)
                         self.game_start = True
                         return
                             
@@ -472,6 +504,7 @@ class Main:
                         
                     # rキーが押されたら再スタート
                     if event.key == K_r:
+                        self.push_sound.play()
                         self.restart = True
                         return
                             
@@ -481,9 +514,15 @@ class Main:
         
         # スタートメソッドを呼び出す
         self.start()
-        
+
         # ゲームのメインループ
         while self.game_start:
+             
+            # フレームレート設定
+            self.clock.tick(30)
+            # 背景色設定
+            self.surface.fill((0,0,0))
+            
             # イベント処理
             for event in pygame.event.get():
                 # 終了処理
@@ -498,18 +537,14 @@ class Main:
                         
                     # スペースキーが押されたら弾を発射
                     if event.key == pygame.K_SPACE:
+                        self.shoot_sound.play()
                         self.bullets.add(Bullet(self.player, self.enemies, self.beams, self.score, self))
                         
-                        
-            # フレームレート設定
-            self.clock.tick(30)
-            # 背景色設定
-            self.surface.fill((0,0,0))
     
             # 敵の生成
             if len(self.enemies) < MAX_ENEMIES + self.level:
-                if random.randint(0,20) > 19:
-                    self.enemies.add(Enemy(self.player, self.beams, self.score, self, self.level))
+                if random.randint(0,50) > 49:
+                    self.enemies.add(Enemy(self.player, self.beams, self.score, self.level))
                     
             # スプライトを更新
             self.player.update()
