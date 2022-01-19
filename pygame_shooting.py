@@ -58,7 +58,7 @@ class Background:
         
         
     #　描画メソッド
-    def draw_BG(self, surface, start, clear, over, level): 
+    def draw_BG(self, surface, start, clear, over, level, show_score, score): 
         # for文で２つの位置に１枚づつバックグラウンドを描画する（描画するx位置は上で指定したimagesizeリスト）
         for i in range(2):      
             surface.blit(self.image,(self.x, self.scroll - self.imagesize[i]))
@@ -70,24 +70,29 @@ class Background:
             self.scroll = 0
             
         # 状態に応じてテキストを表示する    
-        if start == False:
-            #pygame.draw.rect(self.surface, (255,255,255), (0,200,100,180))
-            draw_text(surface, "SHOOTING",  100, WIDTH - (WIDTH/2), 300, "White")
-            draw_text(surface, "Press SPACE to start",  50, WIDTH - (WIDTH/2), 500, "white")
-            draw_text(surface, "Press Esc to exit",  50, WIDTH - (WIDTH/2), 600, "white")
-            
         if clear == True:
-            #pygame.draw.rect(self.surface, (255,255,255), (0,200,100,180))
             draw_text(surface, "STAGE {:01d} CLEAR!".format(level),  100, WIDTH - (WIDTH/2), 300, "White")
-            draw_text(surface, "Press R to next stage",  50, WIDTH - (WIDTH/2), 500, "white")
+            draw_text(surface, "Press Enter to next stage",  50, WIDTH - (WIDTH/2), 500, "white")
             draw_text(surface, "Press Esc to exit",  50, WIDTH - (WIDTH/2), 600, "white") 
             
-        if over == True:
-            #pygame.draw.rect(self.surface, (255,255,255), (0,200,100,180))
+        elif over == True:
             draw_text(surface, "GAME OVER",  100, WIDTH - (WIDTH/2), 300, "White")
-            draw_text(surface, "Press R to continue",  50, WIDTH - (WIDTH/2), 500, "white")
-            draw_text(surface, "Press Esc to exit",  50, WIDTH - (WIDTH/2), 600, "white")      
+            draw_text(surface, "score : {:01d}".format(score),  80, WIDTH - (WIDTH/2), 400, "white")
+            draw_text(surface, "Press Enter to continue",  50, WIDTH - (WIDTH/2), 500, "white")
+            draw_text(surface, "Press Esc to exit",  50, WIDTH - (WIDTH/2), 600, "white")
             
+        elif show_score == True:
+            with open('./Score/score.txt', 'r+') as f:
+                #f.write('deep insider\n')  # ファイル先頭から書き込み
+                f.seek(0)  # ファイル先頭にファイルポインタを移動
+                #print(f.read(), end='')  # deep insider：ファイル先頭から読み込んで表示
+                draw_text(surface, f.read(), 50, 135, 0, "white")
+                
+        else:
+            draw_text(surface, "SHOOTING",  100, WIDTH - (WIDTH/2), 300, "White")
+            draw_text(surface, "Press Enter to start",  50, WIDTH - (WIDTH/2), 500, "white")
+            draw_text(surface, "Press Esc to exit",  50, WIDTH - (WIDTH/2), 600, "white")
+
 
 ### プレイヤークラス ###
 class Player(pygame.sprite.Sprite):
@@ -254,7 +259,7 @@ class Enemy(pygame.sprite.Sprite):
             self.invasion_sound.play()
             self.score.outside += 1
             self.kill()
-            if self.score.outside == 5:
+            if self.score.outside == 1: #########################################
                 self.player.DEAD = True
             
 
@@ -382,9 +387,19 @@ class Score:
     # スコアやレベルを描画するメソッド
     def draw(self, surface):
         draw_text(surface, "SCORE:{:06d}".format(self.score), 50, 135, 0, "white")
-        draw_text(surface, "LEVEL:{:02d}".format(self.level + 1), 50, 85, 50, "white")
-        draw_text(surface, "Number of kills:{:04d}".format(self.count_total), 50, 180, 100, "white")
-        draw_text(surface, "Number of intrusions:{:01d}".format(self.outside), 50, 200, 150, "white")
+        draw_text(surface, "LEVEL:{:02d}".format(self.level + 1), 50, 87, 50, "white")
+        draw_text(surface, "kill:{:04d}".format(self.count_total), 50, 78, 100, "white")
+        draw_text(surface, "intrusions:{:01d}".format(self.outside), 50, 110, 150, "white")
+        
+    
+    def show_past_scores(self, surface):
+        # ファイルを読み書き両用でオープン
+        with open('./Score/score.txt', 'r+') as f:
+            #f.write('deep insider\n')  # ファイル先頭から書き込み
+            f.seek(0)  # ファイル先頭にファイルポインタを移動
+            print(f.read(), end='')  # deep insider：ファイル先頭から読み込んで表示
+            draw_text(surface, f.read(), 50, 135, 0, "white")
+
         
 
 ### メインクラス（ゲームのループを行う） ###
@@ -426,6 +441,10 @@ class Main:
         self.stage_clear = False
         self.game_over = False
         self.restart = False
+        self.show_score = False
+        
+        # 状態フラグ　0:初期状態 1:ゲームスタート 2:ゲームクリア 3:ゲームオーバー 4:スコア表示
+        self.status_flag = 0
         
         # ステージのレベル設定
         self.level = 0
@@ -447,7 +466,7 @@ class Main:
             self.surface.fill((0,0,0))
             
             # 背景描画メソッドを呼び出す
-            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level)
+            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level, self.show_score, self.score.score)
             
             # 画面更新
             pygame.display.update()
@@ -462,21 +481,66 @@ class Main:
                 if event.type == KEYDOWN:
                     
                     # エスケープキーが押されたら終了
-                    if event.key == K_ESCAPE:         
+                    if event.key == K_ESCAPE:  
                         exit()
                         
-                    # スペースキーが押されたらゲーム開始
+                    # スペースキーが押されたらスコア確認画面へ
                     if event.key == K_SPACE:
+                        self.game_start = True
+                        self.show_score = True
+                        self.score_confirmation() 
+                        
+                    # エンターキーが押されたらゲーム開始
+                    if event.key == K_RETURN:
                         self.push_sound.play()
                         self.BGM_1.stop()
                         self.BGM_2.play(-1)
                         self.game_start = True
                         return
+                    
+    
+    def score_confirmation(self):
+        while True: 
+            # フレームレート設定
+            self.clock.tick(30)
+            # 背景色設定
+            self.surface.fill((0,0,0))
+            
+            # 背景描画メソッドを呼び出す
+            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level, self.show_score, self.score.score)
+            
+            # 画面更新
+            pygame.display.update()
+            
+            # イベント処理
+            for event in pygame.event.get(): 
+                # 終了処理
+                if event.type == QUIT:
+                    exit()
+                    
+                # キーが押された時のイベント処理    
+                if event.type == KEYDOWN:
+
+                    # エスケープキーが押されたら終了
+                    if event.key == K_ESCAPE:  
+                        exit()
+                        
+                    # Rキーが押されたらスタート画面に戻る
+                    if event.key == K_r:
+                        # フラグを直す
+                        self.game_start = False
+                        self.show_score = False
+                        return
+        
                             
 
-    # リザルト画面を描画し続けるためのメソッド    
+    # 結果の保存やステージクリア画面またはリザルト画面を描画し続けるためのメソッド    
     def result(self):
-        
+        # 結果の保存
+        #if self.game_over == True:
+        #    
+            
+        # ステージクリア画面またはリザルト画面を表示し続ける
         while True:      
             # フレームレート設定
             self.clock.tick(30)
@@ -484,7 +548,7 @@ class Main:
             self.surface.fill((0,0,0))
             
             # 背景描画メソッドを呼び出す
-            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level)
+            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level, self.show_score, self.score.score)
             
             # 画面更新
             pygame.display.update()
@@ -499,11 +563,11 @@ class Main:
                 if event.type == KEYDOWN:
                     
                     # エスケープキーが押されたら終了
-                    if event.key == K_ESCAPE:         
+                    if event.key == K_ESCAPE:
                         exit()
                         
-                    # rキーが押されたら再スタート
-                    if event.key == K_r:
+                    # エンターが押されたら再スタート
+                    if event.key == K_RETURN:
                         self.push_sound.play()
                         self.restart = True
                         return
@@ -511,6 +575,7 @@ class Main:
 
     # メイン関数 
     def main(self):
+        # タイトルに戻るかどうかを判定するフラグ
         
         # スタートメソッドを呼び出す
         self.start()
@@ -532,18 +597,17 @@ class Main:
                 # キーが押された時のイベント処理    
                 if event.type == KEYDOWN:
                     # エスケープキーが押されたら終了
-                    if event.key == K_ESCAPE:         
+                    if event.key == K_ESCAPE:
                         exit()
                         
                     # スペースキーが押されたら弾を発射
                     if event.key == pygame.K_SPACE:
                         self.shoot_sound.play()
-                        self.bullets.add(Bullet(self.player, self.enemies, self.beams, self.score, self))
-                        
+                        self.bullets.add(Bullet(self.player, self.enemies, self.beams, self.score, self))   
     
             # 敵の生成
             if len(self.enemies) < MAX_ENEMIES + self.level:
-                if random.randint(0,50) > 49:
+                if random.randint(0,40) > 39:
                     self.enemies.add(Enemy(self.player, self.beams, self.score, self.level))
                     
             # スプライトを更新
@@ -553,7 +617,7 @@ class Main:
             self.beams.update()
     
             # スプライトを描画
-            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level)
+            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level, self.show_score, self.score.score)
             self.player.draw(self.surface)
             self.enemies.draw(self.surface)
             self.bullets.draw(self.surface)
