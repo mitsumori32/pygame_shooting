@@ -1,6 +1,8 @@
 import sys
 import random
 import pygame
+import datetime
+import time
 from pygame.locals import *
 
 
@@ -17,15 +19,16 @@ PLAYER_POSITION_X = 400
 PLAYER_POSITION_Y = 800
 
 # 敵のサイズ（X,Y），画面に現れる最大数
-ENEMY_SIZE_X = 90
-ENEMY_SIZE_Y = 70
+ENEMY_SIZE_X = 100
+ENEMY_SIZE_Y = 100
 ENEMY_CENTER = 35
 MAX_ENEMIES = 3
 
-# 弾丸のサイズ（X,Y），速度
-BULLET_SIZE_X = 25
-BULLET_SIZE_Y = 25
-BULLET_SPEED = 50
+# 弾丸のサイズ（X,Y），速度，最大弾数
+BULLET_SIZE_X = 10
+BULLET_SIZE_Y = 40
+BULLET_SPEED = 70
+MAX_BULLETS = 2
 
 # ビームのサイズ（X,Y），初期速度
 BEAM_SIZE_X = 30
@@ -41,7 +44,7 @@ class Background:
     
     def __init__(self, main):
         #　画像をロードしてtransformでサイズ調整（画面サイズに合わせる）
-        self.image = pygame.image.load('./image/BG.png').convert_alpha()
+        self.image = pygame.image.load('./image/background.png').convert_alpha()
         self.image = pygame.transform.scale(self.image, (WIDTH, HEIGHT))
         
         #　画面のスクロール設定
@@ -58,7 +61,7 @@ class Background:
         
         
     #　描画メソッド
-    def draw_BG(self, surface, start, clear, over, level, show_score, score): 
+    def draw_BG(self, surface, flag, level, score): 
         # for文で２つの位置に１枚づつバックグラウンドを描画する（描画するx位置は上で指定したimagesizeリスト）
         for i in range(2):      
             surface.blit(self.image,(self.x, self.scroll - self.imagesize[i]))
@@ -70,28 +73,41 @@ class Background:
             self.scroll = 0
             
         # 状態に応じてテキストを表示する    
-        if clear == True:
-            draw_text(surface, "STAGE {:01d} CLEAR!".format(level),  100, WIDTH - (WIDTH/2), 300, "White")
-            draw_text(surface, "Press Enter to next stage",  50, WIDTH - (WIDTH/2), 500, "white")
-            draw_text(surface, "Press Esc to exit",  50, WIDTH - (WIDTH/2), 600, "white") 
+        # スタート画面
+        if flag == 0:
+            draw_text(surface, "SUPER",  80, WIDTH - (WIDTH/2), 200, "White", "m")
+            draw_text(surface, "SHOOTING",  80, WIDTH - (WIDTH/2), 300, "White", "m")
+            draw_text(surface, "Press Enter to start",  40, WIDTH - (WIDTH/2), 500, "white", "m")
+            draw_text(surface, "Press R to open the scoreboard",  40, WIDTH - (WIDTH/2), 600, "white", "m")
+            draw_text(surface, "Press Esc to exit",  40, WIDTH - (WIDTH/2), 700, "white", "m")
             
-        elif over == True:
-            draw_text(surface, "GAME OVER",  100, WIDTH - (WIDTH/2), 300, "White")
-            draw_text(surface, "score : {:01d}".format(score),  80, WIDTH - (WIDTH/2), 400, "white")
-            draw_text(surface, "Press Enter to continue",  50, WIDTH - (WIDTH/2), 500, "white")
-            draw_text(surface, "Press Esc to exit",  50, WIDTH - (WIDTH/2), 600, "white")
+        # ゲームクリア
+        elif flag == 2:
+            draw_text(surface, "STAGE {:01d} CLEAR!".format(level),  80, WIDTH - (WIDTH/2), 300, "White", "m")
+            draw_text(surface, "Press Enter to next stage",  40, WIDTH - (WIDTH/2), 500, "white", "m")
+            draw_text(surface, "Press Esc to exit",  40, WIDTH - (WIDTH/2), 600, "white", "m")
             
-        elif show_score == True:
+        # ゲームオーバー
+        elif flag == 3:
+            draw_text(surface, "GAME OVER",  80, WIDTH - (WIDTH/2), 300, "Red", "m")
+            draw_text(surface, "score : {:01d}".format(score),  60, WIDTH - (WIDTH/2), 400, "white", "m")
+            draw_text(surface, "Press Enter to continue",  40, WIDTH - (WIDTH/2), 500, "white", "m")
+            draw_text(surface, "Press R to open the scoreboard",  40, WIDTH - (WIDTH/2), 600, "white", "m")
+            draw_text(surface, "Press Esc to exit",  40, WIDTH - (WIDTH/2), 700, "white", "m")
+            
+        # スコア表示
+        elif flag == 4:
             with open('./Score/score.txt', 'r+') as f:
-                #f.write('deep insider\n')  # ファイル先頭から書き込み
-                f.seek(0)  # ファイル先頭にファイルポインタを移動
-                #print(f.read(), end='')  # deep insider：ファイル先頭から読み込んで表示
-                draw_text(surface, f.read(), 50, 135, 0, "white")
+                # 全行を読む
+                lines = f.read().splitlines()
+                # 最新の11個だけ読み込む（最後の1個は改行のため，11個読み込む）
+                last10 = lines[-10:]
                 
-        else:
-            draw_text(surface, "SHOOTING",  100, WIDTH - (WIDTH/2), 300, "White")
-            draw_text(surface, "Press Enter to start",  50, WIDTH - (WIDTH/2), 500, "white")
-            draw_text(surface, "Press Esc to exit",  50, WIDTH - (WIDTH/2), 600, "white")
+                # スコア表示
+                draw_text(surface, "SCORE BOARD", 80, 400, 50, "white", "m")
+                for i in range(10):
+                    draw_text(surface, last10[i], 60, 50, 200+(i*60), "white", "l")
+                draw_text(surface, "Press R to return",  40, WIDTH - (WIDTH/2), 850, "white", "m")
 
 
 ### プレイヤークラス ###
@@ -123,19 +139,17 @@ class Player(pygame.sprite.Sprite):
         # 無敵時間カウンターを初期化
         self.counter = 0
         
-        # 現在の状態をture,falseで管理
-        #self.IDLE = True
-        #self.SHOT = False
-        self.DEAD = False
-        #self.READY = False
-        #self.IMMORTAL = False
+        # 現在の状態を管理
+        self.DEAD = 1 # 1:生存 3:死亡 （フラグ管理の関係で数字が飛んでいる）
         self.INVINCIBLE = False
         
     
     # プレイヤーを描画するメソッド
     def draw(self, surface):
         surface.blit(self.image, self.rect)
-        draw_text(surface, "remaining lives:{:02d}".format(self.remaining_lives), 50, 640, 0, "white")
+        draw_text(surface, "remaining lives:{:02d}".format(self.remaining_lives), 40, WIDTH-20, 40, "white", "r")
+        if self.INVINCIBLE == True:
+            draw_text(surface, "Clash!", 40, WIDTH/2, HEIGHT-100, "white", "m")
         
         
     # 描画メソッド
@@ -170,8 +184,8 @@ class Player(pygame.sprite.Sprite):
         
     # 衝突判定メソッド
     def collision_detection(self):
-        # 無敵時間カウンターを加算
-        self.counter += 1
+        # 衝突時のエポック秒を保持する変数
+        global collision_UNIX_sec
         
         # 衝突判定
         if self.INVINCIBLE == False:  
@@ -179,30 +193,26 @@ class Player(pygame.sprite.Sprite):
             enemy_list = pygame.sprite.spritecollide(self, self.enemy, True)
             beam_list = pygame.sprite.spritecollide(self, self.beam, True)
             
-            # 敵とプレイヤーの衝突判定
-            if enemy_list:
+            # 敵とプレイヤー，ビームとプレイヤーの衝突判定
+            if enemy_list or beam_list:
                 self.collision_sound.play()
-                self.counter = 0
+                # 衝突時のエポック秒を取得
+                collision_UNIX_sec = time.time()
                 self.INVINCIBLE = True
                 self.init_position()
-                self.remaining_lives -= 1
-                
-            # ビームとプレイヤーの衝突判定
-            if beam_list:
-                self.collision_sound.play()
-                self.counter = 0
-                self.INVINCIBLE = True
-                self.init_position()
-                self.remaining_lives -= 1
+                self.remaining_lives -= 1                
             
         # 無敵時間
-        if self.INVINCIBLE == True and self.counter > 150:
-            self.counter = 0
-            self.INVINCIBLE = False
+        if self.INVINCIBLE == True:
+            # 無敵の間，エポック秒を取得し続ける
+            elapse_UNIX_sec = time.time()
+            # start_UNIX_secからの経過時間が2秒以上で無敵解除（2秒間無敵）
+            if elapse_UNIX_sec - collision_UNIX_sec >= 2:
+                self.INVINCIBLE = False
             
         # ゲームオーバー
         if self.remaining_lives <= 0:
-            self.DEAD = True
+            self.DEAD = 3
     
     
     # 位置を初期化するメソッド
@@ -219,7 +229,7 @@ class Enemy(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
  
         # 画像の読み込み
-        self.image = pygame.image.load("./image/Enemy_2.png").convert_alpha()
+        self.image = pygame.image.load("./image/enemy.png").convert_alpha()
         # 画像サイズ変更
         self.image = pygame.transform.scale(self.image, (ENEMY_SIZE_X, ENEMY_SIZE_Y))
         # 画像のrectサイズを取得
@@ -254,13 +264,13 @@ class Enemy(pygame.sprite.Sprite):
                 y = self.rect.y
                 self.beam.add(Beam(x, y, self.player))
             
-        # 画面外に出たら消去 10体画面から出たらゲームオーバー
+        # 画面外に出たらオブジェクト消去 3体画面から出たらゲームオーバー
         if self.rect.bottom-ENEMY_SIZE_Y > SURFACE.height:
             self.invasion_sound.play()
             self.score.outside += 1
             self.kill()
-            if self.score.outside == 1: #########################################
-                self.player.DEAD = True
+            if self.score.outside == 3:
+                self.player.DEAD = 3
             
 
 ### 弾丸クラス ###
@@ -271,7 +281,7 @@ class Bullet(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
         
         # 画像の読み込み
-        self.image = pygame.image.load("./image/Bullet.png").convert_alpha()
+        self.image = pygame.image.load("./image/bullet.png").convert_alpha()
         # 画像サイズ変更
         self.image = pygame.transform.scale(self.image, (BULLET_SIZE_X, BULLET_SIZE_Y))
         # 画像のrectサイズを取得
@@ -292,7 +302,7 @@ class Bullet(pygame.sprite.Sprite):
         self.main = main
         
         # 弾丸初期位置
-        self.rect.x = self.player.rect.x + PLAYER_X_CENTER
+        self.rect.x = self.player.rect.x + PLAYER_X_CENTER + 5
         self.rect.y = self.player.rect.y
         
     
@@ -333,7 +343,7 @@ class Beam(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
         
         # 画像の読み込み
-        self.image = pygame.image.load("./image/Beam.png").convert_alpha()
+        self.image = pygame.image.load("./image/beam.png").convert_alpha()
         # 画像サイズ変更
         self.image = pygame.transform.scale(self.image, (BEAM_SIZE_X, BEAM_SIZE_X))
         # 画像のrectサイズを取得
@@ -386,20 +396,10 @@ class Score:
         
     # スコアやレベルを描画するメソッド
     def draw(self, surface):
-        draw_text(surface, "SCORE:{:06d}".format(self.score), 50, 135, 0, "white")
-        draw_text(surface, "LEVEL:{:02d}".format(self.level + 1), 50, 87, 50, "white")
-        draw_text(surface, "kill:{:04d}".format(self.count_total), 50, 78, 100, "white")
-        draw_text(surface, "intrusions:{:01d}".format(self.outside), 50, 110, 150, "white")
-        
-    
-    def show_past_scores(self, surface):
-        # ファイルを読み書き両用でオープン
-        with open('./Score/score.txt', 'r+') as f:
-            #f.write('deep insider\n')  # ファイル先頭から書き込み
-            f.seek(0)  # ファイル先頭にファイルポインタを移動
-            print(f.read(), end='')  # deep insider：ファイル先頭から読み込んで表示
-            draw_text(surface, f.read(), 50, 135, 0, "white")
-
+        draw_text(surface, "SCORE:{:06d}".format(self.score), 40, 20, 40, "white", "l")
+        draw_text(surface, "LEVEL:{:02d}".format(self.level + 1), 40, 20, 90, "white", "l")
+        draw_text(surface, "KILL:{:04d}".format(self.count_total), 40, 20, 140, "white", "l")
+        draw_text(surface, "RAID:{:01d}".format(self.outside), 40, 20, 190, "white", "l")
         
 
 ### メインクラス（ゲームのループを行う） ###
@@ -431,24 +431,21 @@ class Main:
         self.BGM_1.set_volume(0.2)
         self.BGM_2 = pygame.mixer.Sound('./mp3/BGM_2.mp3')
         self.BGM_2.set_volume(0.2)
-        self.push_sound = pygame.mixer.Sound('./mp3/PUSH.mp3')
+        self.push_sound = pygame.mixer.Sound('./mp3/PUSH_1.mp3')
         self.push_sound.set_volume(0.2)
+        self.push_sound_2 = pygame.mixer.Sound('./mp3/PUSH_2.mp3')
+        self.push_sound_2.set_volume(0.2)
+        self.cancel_sound = pygame.mixer.Sound('./mp3/CANCEL.mp3')
+        self.cancel_sound.set_volume(0.2)
         self.shoot_sound = pygame.mixer.Sound('./mp3/SHOOT.mp3')
         self.shoot_sound.set_volume(0.2)
         
-        # 各種フラグ
-        self.game_start = False
-        self.stage_clear = False
-        self.game_over = False
+        # リスタートフラグ
         self.restart = False
-        self.show_score = False
-        
         # 状態フラグ　0:初期状態 1:ゲームスタート 2:ゲームクリア 3:ゲームオーバー 4:スコア表示
         self.status_flag = 0
-        
         # ステージのレベル設定
         self.level = 0
-        
         # 敵を倒した数をカウント
         self.count = 0
         
@@ -466,7 +463,7 @@ class Main:
             self.surface.fill((0,0,0))
             
             # 背景描画メソッドを呼び出す
-            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level, self.show_score, self.score.score)
+            self.BG.draw_BG(self.surface, self.status_flag, self.level, self.score.score)
             
             # 画面更新
             pygame.display.update()
@@ -484,10 +481,9 @@ class Main:
                     if event.key == K_ESCAPE:  
                         exit()
                         
-                    # スペースキーが押されたらスコア確認画面へ
-                    if event.key == K_SPACE:
-                        self.game_start = True
-                        self.show_score = True
+                    # Rキーが押されたらスコア確認画面へ
+                    if event.key == K_r:
+                        self.push_sound_2.play()
                         self.score_confirmation() 
                         
                     # エンターキーが押されたらゲーム開始
@@ -495,11 +491,17 @@ class Main:
                         self.push_sound.play()
                         self.BGM_1.stop()
                         self.BGM_2.play(-1)
-                        self.game_start = True
+                        self.status_flag = 1
                         return
                     
     
+    # スコアを表示し続けるための関数
     def score_confirmation(self):
+        # 元のフラグの状態を保存
+        old_flag = self.status_flag
+        # フラグをステータス表示に切り替え
+        self.status_flag = 4
+        
         while True: 
             # フレームレート設定
             self.clock.tick(30)
@@ -507,7 +509,7 @@ class Main:
             self.surface.fill((0,0,0))
             
             # 背景描画メソッドを呼び出す
-            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level, self.show_score, self.score.score)
+            self.BG.draw_BG(self.surface, self.status_flag, self.level, self.score.score)
             
             # 画面更新
             pygame.display.update()
@@ -525,21 +527,23 @@ class Main:
                     if event.key == K_ESCAPE:  
                         exit()
                         
-                    # Rキーが押されたらスタート画面に戻る
+                    # Rキーが押されたら元の画面に戻る
                     if event.key == K_r:
-                        # フラグを直す
-                        self.game_start = False
-                        self.show_score = False
+                        self.cancel_sound.play()
+                        # フラグを元に戻す
+                        self.status_flag = old_flag
                         return
-        
                             
 
     # 結果の保存やステージクリア画面またはリザルト画面を描画し続けるためのメソッド    
     def result(self):
-        # 結果の保存
-        #if self.game_over == True:
-        #    
-            
+        # ゲームオーバー時，結果を保存する
+        if self.status_flag == 3:
+            # ファイルを追記でオープン
+            with open('./Score/score.txt', 'a') as f:
+                #日付とスコアをtxtファイルに保存
+                print(datetime.datetime.now().strftime("%Y/%m/%d %H:%M"), ':', self.score.score, file=f)
+        
         # ステージクリア画面またはリザルト画面を表示し続ける
         while True:      
             # フレームレート設定
@@ -548,7 +552,7 @@ class Main:
             self.surface.fill((0,0,0))
             
             # 背景描画メソッドを呼び出す
-            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level, self.show_score, self.score.score)
+            self.BG.draw_BG(self.surface, self.status_flag, self.level, self.score.score)
             
             # 画面更新
             pygame.display.update()
@@ -564,7 +568,18 @@ class Main:
                     
                     # エスケープキーが押されたら終了
                     if event.key == K_ESCAPE:
+                        # ステージクリア状態で終了する場合，結果の保存
+                        if self.status_flag == 2:
+                            # ファイルを追記でオープン
+                            with open('./Score/score.txt', 'a') as f:
+                                # 日付とスコアをtxtファイルに保存
+                                print(datetime.datetime.now().strftime("%Y/%m/%d %H:%M"), ':', self.score.score, file=f)
                         exit()
+                        
+                    # Rキーが押されたらスコア確認画面へ
+                    if event.key == K_r and self.status_flag == 3:
+                        self.push_sound_2.play()
+                        self.score_confirmation() 
                         
                     # エンターが押されたら再スタート
                     if event.key == K_RETURN:
@@ -575,13 +590,11 @@ class Main:
 
     # メイン関数 
     def main(self):
-        # タイトルに戻るかどうかを判定するフラグ
-        
         # スタートメソッドを呼び出す
         self.start()
 
         # ゲームのメインループ
-        while self.game_start:
+        while self.status_flag:
              
             # フレームレート設定
             self.clock.tick(30)
@@ -600,13 +613,14 @@ class Main:
                     if event.key == K_ESCAPE:
                         exit()
                         
-                    # スペースキーが押されたら弾を発射
-                    if event.key == pygame.K_SPACE:
+                    # スペースキーが押されたら弾を発射（画面に存在できるのは2つまで）
+                    if event.key == pygame.K_SPACE and len(self.bullets) < MAX_BULLETS:
                         self.shoot_sound.play()
                         self.bullets.add(Bullet(self.player, self.enemies, self.beams, self.score, self))   
     
             # 敵の生成
             if len(self.enemies) < MAX_ENEMIES + self.level:
+                # 1ループごとに，1/40の確率で敵を生成
                 if random.randint(0,40) > 39:
                     self.enemies.add(Enemy(self.player, self.beams, self.score, self.level))
                     
@@ -617,25 +631,25 @@ class Main:
             self.beams.update()
     
             # スプライトを描画
-            self.BG.draw_BG(self.surface, self.game_start, self.stage_clear, self.game_over, self.level, self.show_score, self.score.score)
-            self.player.draw(self.surface)
+            self.BG.draw_BG(self.surface, self.status_flag, self.level, self.score.score)
             self.enemies.draw(self.surface)
+            self.player.draw(self.surface)
             self.bullets.draw(self.surface)
             self.beams.draw(self.surface)
             self.score.draw(self.surface)
             
-            # 敵を10+(level*5)体倒したらステージクリア
+            # プレイヤーの死亡情報を保存
+            self.status_flag = self.player.DEAD
+            
+            # 敵を10+(level*3)体倒したらステージクリア
             if self.count == 10 + (self.level * 3):
-                self.stage_clear = True
+                self.status_flag = 2
                 # レベルを加算
                 self.score.add_level()
                 self.level = self.score.level
             
-            # プレイヤーの死亡情報を保存
-            self.game_over = self.player.DEAD
-            
             # ゲームクリア・オーバー処理
-            if self.stage_clear or self.game_over:
+            if self.status_flag == 2 or self.status_flag == 3:
                 # リザルト画面を表示し続けるメソッドを呼び出す
                 self.result()
             
@@ -646,7 +660,7 @@ class Main:
                 self.bullets.empty()
                 self.beams.empty()
                 
-                if self.game_over:
+                if self.status_flag == 3:
                     # レベルを初期化
                     self.level = 0
                     # プレイヤーインスタンス化
@@ -657,8 +671,7 @@ class Main:
                     self.BG = Background(self)
                 
                 # フラグ初期化
-                self.stage_clear = False
-                self.game_over = False
+                self.status_flag = 1
                 self.restart = False
                 
                 # 敵を倒した数を初期化
@@ -669,16 +682,21 @@ class Main:
             # 画面更新
             pygame.display.update()
 
-                                         
+                                    
 # フォントの設定
-font_name = pygame.font.match_font('メイリオ')
+font_name = pygame.font.match_font('stencil')
 
 # テキスト描画関数
-def draw_text(screen, text, size, x, y, color):
+def draw_text(screen, text, size, x, y, color, position):
     font = pygame.font.Font(font_name, size)
     text_surface = font.render(text, True, color)
     text_rect = text_surface.get_rect()
-    text_rect.midtop = (x, y)
+    if position == "l":
+        text_rect.midleft = (x, y)
+    elif position == "r":
+        text_rect.midright = (x, y)
+    elif position == "m":
+        text_rect.midtop = (x, y)
     screen.blit(text_surface, text_rect)
 
 
