@@ -32,8 +32,14 @@ MAX_BULLETS = 2
 
 # ビームのサイズ（X,Y），初期速度
 BEAM_SIZE_X = 30
-BEAM_SIZE_Y = 20
+BEAM_SIZE_Y = 30
 BEAM_SPEED = 20
+
+# アイテムのサイズ（X,Y），スピード，画面に現れる最大数
+ITEM_SIZE_X = 30
+ITEM_SIZE_Y = 30
+ITEM_SPEED = 8
+MAX_ITEMS = 1
 
 # 画面定義(X軸,Y軸,横,縦)
 SURFACE = Rect(0, 0, WIDTH, HEIGHT)
@@ -50,21 +56,19 @@ class Background:
         #　画面のスクロール設定
         self.scroll = 0
         self.scroll_speed = 5
-        self.x = 0
-        self.y = 0
         
         # 他のオブジェクトを保存
         self.main = main
         
-        #　0と画面横サイズの二つをリストに入れておく
+        #　画面縦サイズと0と二つをリストに入れておく
         self.imagesize = [HEIGHT, 0]
         
         
     #　描画メソッド
     def draw_BG(self, surface, flag, level, score): 
-        # for文で２つの位置に１枚づつバックグラウンドを描画する（描画するx位置は上で指定したimagesizeリスト）
+        # for文で２つの位置に１枚ずつ背景を描画
         for i in range(2):      
-            surface.blit(self.image,(self.x, self.scroll - self.imagesize[i]))
+            surface.blit(self.image,(0, self.scroll - self.imagesize[i]))
         
         self.scroll += self.scroll_speed
         
@@ -113,7 +117,7 @@ class Background:
 ### プレイヤークラス ###
 class Player(pygame.sprite.Sprite):
     
-    def __init__(self, enemies, beams):
+    def __init__(self, enemies, beams, items):
         # スプライトクラスの初期化
         pygame.sprite.Sprite.__init__(self)
         
@@ -132,9 +136,10 @@ class Player(pygame.sprite.Sprite):
         # プレイヤーの残機
         self.remaining_lives = 5
         
-        # エネミーグループ，ビームグループを保存
+        # エネミーグループ，ビームグループ，アイテムグループを保存
         self.enemy = enemies
         self.beam = beams
+        self.item = items
         
         # 無敵時間カウンターを初期化
         self.counter = 0
@@ -142,14 +147,17 @@ class Player(pygame.sprite.Sprite):
         # 現在の状態を管理
         self.DEAD = 1 # 1:生存 3:死亡 （フラグ管理の関係で数字が飛んでいる）
         self.INVINCIBLE = False
+        self.item_flag = False
         
     
-    # プレイヤーを描画するメソッド
+    # プレイヤー，その他テキストを描画するメソッド
     def draw(self, surface):
         surface.blit(self.image, self.rect)
         draw_text(surface, "remaining lives:{:02d}".format(self.remaining_lives), 40, WIDTH-20, 40, "white", "r")
-        if self.INVINCIBLE == True:
+        if self.INVINCIBLE == True and self.item_flag == False:
             draw_text(surface, "Clash!", 40, WIDTH/2, HEIGHT-100, "white", "m")
+        elif self.INVINCIBLE == True and self.item_flag == True:
+            draw_text(surface, "INVINCIBLE", 40, WIDTH/2, HEIGHT-100, "white", "m")
         
         
     # 描画メソッド
@@ -192,6 +200,7 @@ class Player(pygame.sprite.Sprite):
             # 接触しているものをリストで返す
             enemy_list = pygame.sprite.spritecollide(self, self.enemy, True)
             beam_list = pygame.sprite.spritecollide(self, self.beam, True)
+            item_list = pygame.sprite.spritecollide(self, self.item, True)
             
             # 敵とプレイヤー，ビームとプレイヤーの衝突判定
             if enemy_list or beam_list:
@@ -200,15 +209,28 @@ class Player(pygame.sprite.Sprite):
                 collision_UNIX_sec = time.time()
                 self.INVINCIBLE = True
                 self.init_position()
-                self.remaining_lives -= 1                
+                self.remaining_lives -= 1
+                
+            elif item_list:
+                # アイテムフラグをTrueにする
+                self.item_flag = True
+                # アイテム取得時のエポック秒
+                collision_UNIX_sec = time.time()
+                self.INVINCIBLE = True
             
         # 無敵時間
         if self.INVINCIBLE == True:
             # 無敵の間，エポック秒を取得し続ける
             elapse_UNIX_sec = time.time()
             # start_UNIX_secからの経過時間が2秒以上で無敵解除（2秒間無敵）
-            if elapse_UNIX_sec - collision_UNIX_sec >= 2:
+            if elapse_UNIX_sec - collision_UNIX_sec >= 2 and self.item_flag == False:
                 self.INVINCIBLE = False
+                self.item_flag = False
+                
+            elif elapse_UNIX_sec - collision_UNIX_sec >= 10 and self.item_flag == True:
+                # 各フラグをFalseにする
+                self.INVINCIBLE = False
+                self.item_flag = False
             
         # ゲームオーバー
         if self.remaining_lives <= 0:
@@ -286,7 +308,6 @@ class Bullet(pygame.sprite.Sprite):
         self.image = pygame.transform.scale(self.image, (BULLET_SIZE_X, BULLET_SIZE_Y))
         # 画像のrectサイズを取得
         self.rect = self.image.get_rect()
-        #self.rect.center = [x,y]
         
         # 衝突音
         self.hit_sound = pygame.mixer.Sound('./mp3/BANG_2.mp3')
@@ -334,7 +355,7 @@ class Bullet(pygame.sprite.Sprite):
         # 画面外に出たら消去
         if  self.rect.bottom < 0:
             self.kill()
-    
+        
 
 ### ビームクラス ###
 class Beam(pygame.sprite.Sprite):
@@ -348,7 +369,6 @@ class Beam(pygame.sprite.Sprite):
         self.image = pygame.transform.scale(self.image, (BEAM_SIZE_X, BEAM_SIZE_X))
         # 画像のrectサイズを取得
         self.rect = self.image.get_rect()
-        #self.rect.center = [x,y]
         
         # 他オブジェクト保存
         self.player = player
@@ -367,6 +387,37 @@ class Beam(pygame.sprite.Sprite):
             
         # 画面外に出たら消去
         if self.rect.bottom-BEAM_SIZE_Y > SURFACE.height:
+            self.kill()
+            
+
+### アイテムクラス ###
+class Item(pygame.sprite.Sprite):
+    
+    def __init__(self):
+        pygame.sprite.Sprite.__init__(self)
+        
+        # 画像の読み込み
+        self.image = pygame.image.load("./image/item.png").convert_alpha()
+        # 画像サイズ変更
+        self.image = pygame.transform.scale(self.image, (BEAM_SIZE_X, BEAM_SIZE_X))
+        # 画像のrectサイズを取得
+        self.rect = self.image.get_rect()
+        
+        # スピードを決定
+        self.speed = ITEM_SPEED
+        
+        # アイテム初期位置
+        self.rect.x = random.randint(0, WIDTH - ITEM_SIZE_X)
+        self.rect.y = 0 - ITEM_SIZE_Y
+        
+        
+    # アイテムの移動
+    def update(self):
+        # アイテムの速度
+        self.rect.y += self.speed
+            
+        # 画面外に出たらオブジェクト消去
+        if self.rect.bottom-ITEM_SIZE_Y > SURFACE.height:
             self.kill()
         
 
@@ -417,8 +468,10 @@ class Main:
         self.bullets = pygame.sprite.Group()
         # ビームグループを作成
         self.beams = pygame.sprite.Group()
+        # アイテムグループを作成
+        self.items = pygame.sprite.Group()
         # プレイヤーインスタンス化
-        self.player = Player(self.enemies, self.beams)
+        self.player = Player(self.enemies, self.beams, self.items)
         # 時間オブジェクト生成
         self.clock = pygame.time.Clock()
         # スコアインスタンス化
@@ -624,11 +677,18 @@ class Main:
                 if random.randint(0,40) > 39:
                     self.enemies.add(Enemy(self.player, self.beams, self.score, self.level))
                     
+            # アイテムの生成
+            if len(self.items) < MAX_ITEMS:
+                # 1ループごとに，1/1000の確率でアイテムを生成
+                if random.randint(0,1000) > 999:
+                    self.items.add(Item())
+                    
             # スプライトを更新
             self.player.update()
             self.enemies.update()
             self.bullets.update()
             self.beams.update()
+            self.items.update()
     
             # スプライトを描画
             self.BG.draw_BG(self.surface, self.status_flag, self.level, self.score.score)
@@ -637,6 +697,7 @@ class Main:
             self.bullets.draw(self.surface)
             self.beams.draw(self.surface)
             self.score.draw(self.surface)
+            self.items.draw(self.surface)
             
             # プレイヤーの死亡情報を保存
             self.status_flag = self.player.DEAD
@@ -659,12 +720,13 @@ class Main:
                 self.enemies.empty()
                 self.bullets.empty()
                 self.beams.empty()
+                self.items.empty()
                 
                 if self.status_flag == 3:
                     # レベルを初期化
                     self.level = 0
                     # プレイヤーインスタンス化
-                    self.player = Player(self.enemies, self.beams)
+                    self.player = Player(self.enemies, self.beams, self.items)
                     # スコアインスタンス化（スコア初期化）
                     self.score = Score()
                     # 背景インスタンス化
